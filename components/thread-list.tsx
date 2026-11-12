@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import {
   experimental_Icon as Icon,
-  experimental_resolveThreadStatus as resolveThreadStatus,
-  experimental_ThreadStatusGlyph as ThreadStatusGlyph,
   experimental_useSidebarThreads as useSidebarThreads,
-  useSidebarThreadDraftIds,
-  type PluginSidebarProject,
   type PluginSidebarThread,
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
@@ -28,6 +24,8 @@ const BLOCK_TITLES: Record<BlockId, string> = {
   working: "В работе",
   pinned: "Закреплённые",
 };
+
+type TopRowProject = { id: string; name: string; isPersonal: boolean };
 
 const blockStorageKey = (block: BlockId) => `bb-sidebar:collapsed:block:${block}`;
 
@@ -80,24 +78,34 @@ function Block({
   );
 }
 
-function FolderStatus({
-  folder,
-  draftIds,
-}: {
-  folder: ProjectFolder<PluginSidebarThread>;
-  draftIds: ReadonlySet<string>;
-}) {
-  const hiddenThreads = folder.rows.map((row) => row.thread);
-  const status = resolveThreadStatus({
-    thread: null,
-    hiddenThreads,
-    hasUnsubmittedDraft: hiddenThreads.some((thread) => draftIds.has(thread.id)),
-    rowStatus: null,
-  });
-  if (!status.isWorking) return null;
+/**
+ * Dot in a collapsed folder's header: the project has threads in «Ждут вас»
+ * (accent) or «В работе» (muted) — counted over the whole project, not only the
+ * threads left in the folder.
+ */
+function FolderIndicator({ folder }: { folder: ProjectFolder<PluginSidebarThread> }) {
+  const kind =
+    folder.attentionCount > 0 ? "attention" : folder.workingCount > 0 ? "working" : null;
+  if (kind === null) return null;
+  const label =
+    kind === "attention"
+      ? `Есть треды в «${BLOCK_TITLES.attention}»: ${folder.attentionCount}`
+      : `Есть треды в «${BLOCK_TITLES.working}»: ${folder.workingCount}`;
   return (
-    <span className="flex size-4 shrink-0 items-center justify-center" title={status.label ?? undefined}>
-      <ThreadStatusGlyph indicator={status.indicator} size="compact" />
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      data-folder-indicator={kind}
+      className="flex size-4 shrink-0 items-center justify-center"
+    >
+      <span
+        className={
+          kind === "attention"
+            ? "size-2 rounded-full bg-[var(--warning)]"
+            : "size-2 animate-pulse rounded-full bg-muted-foreground"
+        }
+      />
     </span>
   );
 }
@@ -128,7 +136,6 @@ export function AttentionThreadList({
   onNavigate,
 }: PluginThreadListProps) {
   const { status, threads, projects } = useSidebarThreads();
-  const draftIds = useSidebarThreadDraftIds();
   const frozen = useFrozenActiveThread(activeThreadId, threads);
   const flags = useStoredFlags();
 
@@ -141,13 +148,25 @@ export function AttentionThreadList({
     () => buildSidebarModel<PluginSidebarThread>({ threads, projects, frozen }),
     [threads, projects, frozen],
   );
-  const projectById = useMemo(() => {
-    const map = new Map<string, PluginSidebarProject>();
-    for (const project of projects) map.set(project.id, project);
-    return map;
+  // Stable per-project objects, so memoized rows are not re-rendered by a new
+  // `project` prop on every list render.
+  const projectLookup = useMemo(() => {
+    const byId = new Map<string, TopRowProject>();
+    for (const project of projects) {
+      byId.set(project.id, { id: project.id, name: project.name, isPersonal: project.isPersonal });
+    }
+    return (projectId: string): TopRowProject => {
+      let entry = byId.get(projectId);
+      if (entry === undefined) {
+        entry = { id: projectId, name: "", isPersonal: false };
+        byId.set(projectId, entry);
+      }
+      return entry;
+    };
   }, [projects]);
 
-  // Open the folder that holds the active thread when it becomes active.
+  // Open the folder that holds the active thread when it becomes active. The
+  // opening is temporary: it is not written to localStorage.
   const activeFolder = folderOfThread(model, activeThreadId);
   const revealed = useRef<string | null>(null);
   useEffect(() => {
@@ -156,7 +175,7 @@ export function AttentionThreadList({
     revealed.current = activeThreadId;
     const key = collapsedStorageKey(activeFolder);
     if (isFolderCollapsed(flags.get(key), activeFolder, activeProjectId)) {
-      flags.set(key, false);
+      flags.setTemporary(key, false);
     }
   }, [activeThreadId, activeFolder, activeProjectId, flags]);
 
@@ -168,7 +187,6 @@ export function AttentionThreadList({
 
   const renderTopRows = (rows: TopRow<PluginSidebarThread>[]) =>
     rows.map((row) => {
-      const project = projectById.get(row.thread.projectId);
       return (
         <div role="listitem" key={row.thread.id}>
           <ThreadRow
@@ -177,11 +195,7 @@ export function AttentionThreadList({
             depth={0}
             reason={row.reason}
             parentTitle={row.parentTitle}
-            project={{
-              id: row.thread.projectId,
-              name: project?.name ?? "",
-              isPersonal: project?.isPersonal ?? false,
-            }}
+            project={projectLookup(row.thread.projectId)}
             onNavigate={handleNavigate}
           />
         </div>
@@ -236,7 +250,7 @@ export function AttentionThreadList({
                     <span className="truncate text-sidebar-foreground">{folder.name}</span>
                     <span className="tabular-nums text-muted-foreground">{folder.rows.length}</span>
                     <span className="ml-auto flex shrink-0 items-center">
-                      {collapsed ? <FolderStatus folder={folder} draftIds={draftIds} /> : null}
+                      {collapsed ? <FolderIndicator folder={folder} /> : null}
                     </span>
                   </button>
                 </div>

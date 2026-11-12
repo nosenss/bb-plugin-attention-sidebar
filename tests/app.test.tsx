@@ -126,4 +126,87 @@ describe("thread list slot", () => {
     const empty = renderSlot(list, props(), { sidebarThreads: { status: "ready", threads: [], projects } });
     expect(empty.getByText("Тредов пока нет")).toBeTruthy();
   });
+
+  it("marks a collapsed folder when its project has threads in the top blocks", async () => {
+    const slot = renderSlot(await threadList(), props({ activeProjectId: "proj_a" }), {
+      sidebarThreads: { status: "ready", threads, projects },
+    });
+    const folderB = slot.container.querySelector('[data-folder="proj_b"]') as HTMLElement;
+    // proj_b has a question in «Ждут вас»; its folder is collapsed.
+    expect(
+      folderB.querySelector('[data-folder-indicator="attention"]')?.getAttribute("aria-label"),
+    ).toContain("Ждут вас");
+
+    // Expanded folders show no indicator; neither do projects without activity.
+    const folderA = slot.container.querySelector('[data-folder="proj_a"]') as HTMLElement;
+    expect(folderA.querySelector("[data-folder-indicator]")).toBeNull();
+  });
+
+  it("marks a collapsed folder with working threads, attention taking priority", async () => {
+    const onlyBusy = [
+      makeThread({ id: "busy", projectId: "proj_b", status: "active" }),
+      makeThread({ id: "rest", projectId: "proj_b", title: "Покой" }),
+    ];
+    const slot = renderSlot(await threadList(), props({ activeProjectId: "proj_a" }), {
+      sidebarThreads: { status: "ready", threads: onlyBusy, projects },
+    });
+    const folderB = slot.container.querySelector('[data-folder="proj_b"]') as HTMLElement;
+    expect(folderB.querySelector('[data-folder-indicator="working"]')).toBeTruthy();
+    expect(folderB.querySelector('[data-folder-indicator="attention"]')).toBeNull();
+  });
+
+  it("keeps another plugin's row status next to the reason glyph", async () => {
+    const slot = renderSlot(await threadList(), props(), {
+      sidebarThreads: { status: "ready", threads, projects },
+      sidebarRowStatuses: { done: { icon: "Sparkles", label: "Проверяется ревью", tone: "running" } },
+    });
+    const row = slot.container.querySelector('[data-thread-row="done"]') as HTMLElement;
+    expect(row.querySelector('[data-attention-reason="done"]')).toBeTruthy();
+    expect(row.querySelector("[data-row-status]")?.getAttribute("title")).toBe("Проверяется ревью");
+    const plain = slot.container.querySelector('[data-thread-row="q"]') as HTMLElement;
+    expect(plain.querySelector("[data-row-status]")).toBeNull();
+  });
+
+  it("opens the active thread's folder temporarily, without writing localStorage", async () => {
+    const slot = renderSlot(await threadList(), props({ activeThreadId: "b-old", activeProjectId: "proj_a" }), {
+      sidebarThreads: { status: "ready", threads, projects },
+    });
+    const folderB = slot.container.querySelector('[data-folder="proj_b"]') as HTMLElement;
+    expect(within(folderB).getByRole("button", { expanded: true })).toBeTruthy();
+    expect(window.localStorage.getItem("bb-sidebar:collapsed:proj_b")).toBeNull();
+  });
+
+  it("keeps the time and the parent caption in the link's accessible content", async () => {
+    const child = makeThread({
+      id: "kid",
+      projectId: "proj_a",
+      title: "Дочерний",
+      parentThreadId: "dad",
+      isUnread: true,
+    });
+    const dad = makeThread({ id: "dad", projectId: "proj_b", title: "Родитель" });
+    const slot = renderSlot(await threadList(), props(), {
+      sidebarThreads: { status: "ready", threads: [child, dad], projects },
+    });
+    const anchor = slot.container.querySelector('[data-sidebar-thread-id="kid"]') as HTMLElement;
+    expect(anchor.hasAttribute("aria-label")).toBe(false);
+    expect(anchor.textContent).toContain("Дочерний");
+    expect(anchor.textContent).toContain("↳ Родитель");
+    expect(anchor.textContent).toMatch(/\d/);
+  });
+
+  it("keeps the shortcut badge and the «⋯» button apart", async () => {
+    const slot = renderSlot(await threadList(), props(), {
+      sidebarThreads: { status: "ready", threads, projects },
+      sidebarShortcuts: { q: { label: "⌘1", ariaKeyshortcuts: "Meta+1" } },
+    });
+    const row = slot.container.querySelector('[data-thread-row="q"]') as HTMLElement;
+    const trailing = row.querySelector("kbd")!.parentElement!;
+    // The trailing group shifts away from the button on hover/focus/open.
+    expect(trailing.className).toContain("group-hover/row:mr-6");
+    expect(trailing.className).toContain("group-focus-within/row:mr-6");
+    expect(trailing.className).toContain("group-has-[[data-state=open]]/row:mr-6");
+    expect(trailing.className).not.toContain("invisible");
+    expect(row.querySelector("kbd")!.textContent).toBe("⌘1");
+  });
 });

@@ -27,8 +27,12 @@ settings, commands, or storage beyond the browser's localStorage.
 
 Each thread appears once. A thread that needs attention or is working shows
 in the top blocks even when it is pinned or a child (with a `↳ parent`
-caption). The open thread stays where it was when it was opened until the
-user opens another thread. Rows in the top blocks show the project avatar
+caption). The open thread stays in the group it was in when it was opened
+until the user opens another thread; its ✓ / ? / ! glyph is live, so the «?»
+disappears as soon as the question is answered. A collapsed folder shows a
+small dot when its project has threads in «Ждут вас» (accent) or «В работе».
+The folder of the open thread is expanded for the session only; it is not
+saved. Rows in the top blocks show the project avatar
 (letters and color from the project); provider icons are not shown.
 Right-click a row, or use its `⋯` button, for bb's own thread menu (pin,
 rename, archive, …).

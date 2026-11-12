@@ -95,7 +95,18 @@ function ReasonGlyph({ reason }: { reason: AttentionReason }) {
   );
 }
 
-function HostStatusGlyph({ thread }: { thread: PluginSidebarThread }) {
+/**
+ * bb's own status for the row, plus a status another plugin set on it. In
+ * «Ждут вас» the reason glyph replaces bb's indicator (it is the same
+ * information), but another plugin's row status stays beside it.
+ */
+function StatusGlyphs({
+  thread,
+  reason,
+}: {
+  thread: PluginSidebarThread;
+  reason: AttentionReason | null;
+}) {
   const { hasUnsubmittedDraft } = useSidebarThreadDraft(thread.id);
   const rowStatus = useSidebarThreadRowStatus(thread.id);
   const status = resolveThreadStatus({
@@ -104,6 +115,23 @@ function HostStatusGlyph({ thread }: { thread: PluginSidebarThread }) {
     hasUnsubmittedDraft,
     rowStatus,
   });
+
+  if (reason !== null) {
+    return (
+      <>
+        {rowStatus !== null ? (
+          <span
+            className="flex size-4 shrink-0 items-center justify-center"
+            data-row-status=""
+            title={rowStatus.label}
+          >
+            <ThreadStatusGlyph indicator="none" rowStatus={rowStatus} size="compact" />
+          </span>
+        ) : null}
+        <ReasonGlyph reason={reason} />
+      </>
+    );
+  }
   if (status.indicator === "none" && status.rowStatus === null) return null;
   return (
     <span className="flex size-4 shrink-0 items-center justify-center" title={status.label ?? undefined}>
@@ -149,7 +177,6 @@ export const ThreadRow = memo(function ThreadRow({
           data-sidebar-thread-id={thread.id}
           aria-current={isActive ? "page" : undefined}
           aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
-          aria-label={thread.indicatorLabel ? `${title} — ${thread.indicatorLabel}` : title}
           onClick={() => onNavigate()}
           className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-md pr-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
           style={{ paddingLeft: `${8 + depth * 14}px` }}
@@ -168,16 +195,17 @@ export const ThreadRow = memo(function ThreadRow({
               </span>
             ) : null}
           </span>
-          {shortcut !== null ? (
-            <kbd className="pointer-events-none shrink-0 rounded-sm bg-state-hover px-1.5 py-0.5 font-sans text-xs leading-none text-subtle-foreground">
-              {shortcut.label}
-            </kbd>
-          ) : (
-            <span className="shrink-0 text-xs tabular-nums text-muted-foreground group-hover/row:invisible group-has-[[data-state=open]]/row:invisible">
-              {time}
-            </span>
-          )}
-          {reason !== null ? <ReasonGlyph reason={reason} /> : <HostStatusGlyph thread={thread} />}
+          {/* Shifts left on hover/focus/open to make room for the «⋯» button. */}
+          <span className="flex shrink-0 items-center gap-2 group-hover/row:mr-6 group-focus-within/row:mr-6 group-has-[[data-state=open]]/row:mr-6">
+            {shortcut !== null ? (
+              <kbd className="pointer-events-none shrink-0 rounded-sm bg-state-hover px-1.5 py-0.5 font-sans text-xs leading-none text-subtle-foreground">
+                {shortcut.label}
+              </kbd>
+            ) : (
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{time}</span>
+            )}
+            <StatusGlyphs thread={thread} reason={reason} />
+          </span>
         </a>
         <ThreadActionsMenu
           thread={actionTarget}
@@ -193,7 +221,7 @@ export const ThreadRow = memo(function ThreadRow({
                 "absolute top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground",
                 "opacity-0 hover:text-sidebar-foreground focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100",
                 "outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                "right-7",
+                "right-2",
               )}
             >
               <Icon name="MoreHorizontal" className="size-3.5" aria-hidden />

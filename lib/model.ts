@@ -101,8 +101,9 @@ export function classifyThread(thread: SidebarThreadInput): Placement {
 }
 
 /**
- * The active thread's placement and sort keys, captured when it became
- * active. It keeps the thread where it was until the user opens another one.
+ * The active thread's group and sort keys, captured when it became active. It
+ * keeps the thread in that group (and position) until the user opens another
+ * one. The reason glyph is not frozen: it always follows the live thread.
  */
 export interface FrozenThread {
   threadId: string;
@@ -120,8 +121,47 @@ export function freezeThread(thread: SidebarThreadInput): FrozenThread {
   };
 }
 
+/** The active-thread freeze as kept by the `useFrozenActiveThread` hook. */
+export interface FrozenState {
+  id: string | null;
+  frozen: FrozenThread | null;
+}
+
+/**
+ * Pure step of the freeze: given the previous state, the active thread, the
+ * current threads and the threads as the list last rendered them (before the
+ * open marked the thread read), returns the next state — the same object when
+ * nothing changes.
+ */
+export function nextFrozenState(
+  state: FrozenState,
+  activeThreadId: string | null,
+  threads: readonly SidebarThreadInput[],
+  previousThreads: readonly SidebarThreadInput[],
+): FrozenState {
+  if (state.id !== activeThreadId) {
+    const seen = previousThreads.find((thread) => thread.id === activeThreadId);
+    return {
+      id: activeThreadId,
+      frozen: seen !== undefined && isThreadVisible(seen) ? freezeThread(seen) : null,
+    };
+  }
+  if (activeThreadId !== null && state.frozen === null) {
+    const current = threads.find((thread) => thread.id === activeThreadId);
+    if (current !== undefined && isThreadVisible(current)) {
+      return { id: activeThreadId, frozen: freezeThread(current) };
+    }
+  }
+  return state;
+}
+
 export interface TopRow<T extends SidebarThreadInput> {
   thread: T;
+  /**
+   * Live reason, set only for rows in «Ждут вас». A frozen active thread that
+   * no longer needs attention (a question was answered) sits in the block
+   * with `reason: null`.
+   */
   reason: AttentionReason | null;
   /** Title of the parent thread, for the "↳ parent" caption; null at the root. */
   parentTitle: string | null;
@@ -143,6 +183,10 @@ export interface ProjectFolder<T extends SidebarThreadInput> {
   rows: FolderRow<T>[];
   /** max(updatedAt) of the folder's threads. */
   lastActivityAt: number;
+  /** Threads of the whole project currently in «Ждут вас». */
+  attentionCount: number;
+  /** Threads of the whole project currently in «В работе». */
+  workingCount: number;
 }
 
 export interface SidebarModel<T extends SidebarThreadInput> {
@@ -195,11 +239,14 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
 
   // Effective placement and sort keys (the frozen active thread keeps its own).
   const placement = new Map<string, Placement>();
+  const liveReason = new Map<string, AttentionReason | null>();
   const updatedAt = new Map<string, number>();
   const attentionAt = new Map<string, number>();
   for (const thread of visible) {
     const isFrozen = frozen?.threadId === thread.id;
-    placement.set(thread.id, isFrozen ? frozen.placement : classifyThread(thread));
+    const live = classifyThread(thread);
+    placement.set(thread.id, isFrozen ? frozen.placement : live);
+    liveReason.set(thread.id, live.group === "attention" ? live.reason : null);
     updatedAt.set(thread.id, isFrozen ? frozen.updatedAt : thread.updatedAt);
     attentionAt.set(
       thread.id,
@@ -213,7 +260,7 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
 
   const topRow = (thread: T): TopRow<T> => ({
     thread,
-    reason: placement.get(thread.id)!.reason,
+    reason: groupOf(thread) === "attention" ? liveReason.get(thread.id)! : null,
     parentTitle: parentOf(thread)?.displayTitle ?? null,
   });
 
@@ -268,9 +315,16 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
     byDesc(updated(a), updated(b)) || a.id.localeCompare(b.id);
 
   const lastActivityByProject = new Map<string, number>();
+  const attentionByProject = new Map<string, number>();
+  const workingByProject = new Map<string, number>();
+  const bump = (counts: Map<string, number>, projectId: string) =>
+    counts.set(projectId, (counts.get(projectId) ?? 0) + 1);
   for (const thread of visible) {
     const previous = lastActivityByProject.get(thread.projectId) ?? 0;
     lastActivityByProject.set(thread.projectId, Math.max(previous, updated(thread)));
+    const group = groupOf(thread);
+    if (group === "attention") bump(attentionByProject, thread.projectId);
+    if (group === "working") bump(workingByProject, thread.projectId);
   }
 
   const projectById = new Map(projects.map((project) => [project.id, project]));
@@ -299,6 +353,8 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
         rows.length > 0
           ? Math.max(...rows.map((row) => updated(row.thread)))
           : (lastActivityByProject.get(projectId) ?? 0),
+      attentionCount: attentionByProject.get(projectId) ?? 0,
+      workingCount: workingByProject.get(projectId) ?? 0,
     });
   }
 

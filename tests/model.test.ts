@@ -8,6 +8,7 @@ import {
   freezeThread,
   isFolderCollapsed,
   listedThreadIds,
+  nextFrozenState,
   type SidebarModel,
 } from "../lib/model";
 import { makeProject, makeThread, T0 } from "./fixtures";
@@ -310,12 +311,40 @@ describe("frozen active thread", () => {
     const other = makeThread({ id: "other" });
     const whileOpen = build([read, other], frozen);
     expect(ids(whileOpen.attention)).toEqual(["t"]);
-    expect(whileOpen.attention[0]!.reason).toBe("done");
+    // The group is frozen, the reason is live: the thread is read now.
+    expect(whileOpen.attention[0]!.reason).toBeNull();
     expectEachVisibleOnce(whileOpen, [read, other]);
 
     const afterLeaving = build([read, makeThread({ id: "other" })], null);
     expect(afterLeaving.attention).toEqual([]);
     expect(folderOfThread(afterLeaving, "t")).toBe("proj_a");
+  });
+
+  it("clears the «?» as soon as the question is answered, keeping the group", () => {
+    const asking = makeThread({ id: "t", hasPendingInteraction: true, status: "active" });
+    const frozen = freezeThread(asking);
+    expect(build([asking], frozen).attention[0]!.reason).toBe("question");
+
+    const answered = { ...asking, hasPendingInteraction: false };
+    const model = build([answered], frozen);
+    expect(ids(model.attention)).toEqual(["t"]);
+    expect(model.attention[0]!.reason).toBeNull();
+    expect(model.working).toEqual([]);
+  });
+
+  it("follows a live change of reason while frozen in «Ждут вас»", () => {
+    const unread = makeThread({ id: "t", isUnread: true });
+    const frozen = freezeThread(unread);
+    const failed = { ...unread, isUnread: false, indicator: "unread-error" as const };
+    expect(build([failed], frozen).attention[0]!.reason).toBe("error");
+  });
+
+  it("keeps the frozen position among attention rows regardless of the live reason", () => {
+    const asking = makeThread({ id: "t", hasPendingInteraction: true, latestAttentionAt: T0 - 500 });
+    const doneNewer = makeThread({ id: "d", isUnread: true, latestAttentionAt: T0 });
+    const frozen = freezeThread(asking);
+    const answered = { ...asking, hasPendingInteraction: false };
+    expect(ids(build([answered, doneNewer], frozen).attention)).toEqual(["t", "d"]);
   });
 
   it("keeps a folder thread in place when it starts working while open", () => {
@@ -331,6 +360,56 @@ describe("frozen active thread", () => {
     const thread = makeThread({ id: "t", isUnread: true });
     const model = build([{ ...thread, isArchived: true }], freezeThread(thread));
     expect(listedThreadIds(model)).toEqual([]);
+  });
+});
+
+describe("folder activity counts", () => {
+  it("counts attention and working threads over the whole project", () => {
+    const model = build([
+      makeThread({ id: "rest", projectId: "proj_a" }),
+      makeThread({ id: "busy", projectId: "proj_a", status: "active" }),
+      makeThread({ id: "busy2", projectId: "proj_a", status: "active" }),
+      makeThread({ id: "unread", projectId: "proj_a", isUnread: true }),
+      makeThread({ id: "other", projectId: "proj_b" }),
+    ]);
+    const a = model.folders.find((folder) => folder.projectId === "proj_a")!;
+    const b = model.folders.find((folder) => folder.projectId === "proj_b")!;
+    expect([a.attentionCount, a.workingCount]).toEqual([1, 2]);
+    expect([b.attentionCount, b.workingCount]).toEqual([0, 0]);
+  });
+});
+
+describe("nextFrozenState", () => {
+  const empty = { id: null, frozen: null };
+
+  it("freezes the thread as the list last rendered it when it becomes active", () => {
+    const unread = makeThread({ id: "t", isUnread: true });
+    const read = { ...unread, isUnread: false };
+    const next = nextFrozenState(empty, "t", [read], [unread]);
+    expect(next.id).toBe("t");
+    expect(next.frozen?.placement).toEqual({ group: "attention", reason: "done" });
+  });
+
+  it("returns the same state while nothing changes", () => {
+    const thread = makeThread({ id: "t" });
+    const state = nextFrozenState(empty, "t", [thread], [thread]);
+    expect(nextFrozenState(state, "t", [thread], [thread])).toBe(state);
+    const hidden = nextFrozenState(empty, "x", [thread], [thread]);
+    expect(hidden.frozen).toBeNull();
+    expect(nextFrozenState(hidden, "x", [thread], [thread])).toBe(hidden);
+  });
+
+  it("freezes late when the active thread appears after the switch", () => {
+    const thread = makeThread({ id: "t", isUnread: true });
+    const state = nextFrozenState(empty, "t", [], []);
+    expect(state.frozen).toBeNull();
+    expect(nextFrozenState(state, "t", [thread], []).frozen?.threadId).toBe("t");
+  });
+
+  it("does not mutate its input", () => {
+    const thread = makeThread({ id: "t" });
+    const state = Object.freeze({ id: null, frozen: null });
+    expect(() => nextFrozenState(state, "t", [thread], [thread])).not.toThrow();
   });
 });
 

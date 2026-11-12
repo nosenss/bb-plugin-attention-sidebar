@@ -1,7 +1,7 @@
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
-  freezeThread,
-  isThreadVisible,
+  nextFrozenState,
+  type FrozenState,
   type FrozenThread,
   type SidebarThreadInput,
 } from "../lib/model";
@@ -36,35 +36,29 @@ export function useNow(): number {
 }
 
 /**
- * The active thread's frozen placement. It is captured from the thread as the
- * list last rendered it, before the open marked it read, and kept until the
- * active thread changes.
+ * The active thread's frozen group. It is captured from the thread as the list
+ * last rendered it, before the open marked it read, and kept until the active
+ * thread changes. The state is derived during render (React's "adjust state on
+ * input change" pattern) and the previous list is remembered in an effect, so
+ * no ref is written while rendering.
  */
 export function useFrozenActiveThread(
   activeThreadId: string | null,
   threads: readonly SidebarThreadInput[],
 ): FrozenThread | null {
-  const state = useRef<{ id: string | null; frozen: FrozenThread | null }>({
-    id: null,
-    frozen: null,
-  });
-  const previousThreads = useRef<readonly SidebarThreadInput[]>(threads);
+  const [state, setState] = useState<FrozenState>(() =>
+    nextFrozenState({ id: null, frozen: null }, activeThreadId, threads, threads),
+  );
+  const renderedThreads = useRef<readonly SidebarThreadInput[]>(threads);
 
-  if (state.current.id !== activeThreadId) {
-    const seen = previousThreads.current.find((thread) => thread.id === activeThreadId);
-    state.current = {
-      id: activeThreadId,
-      frozen: seen !== undefined && isThreadVisible(seen) ? freezeThread(seen) : null,
-    };
-  }
-  if (activeThreadId !== null && state.current.frozen === null) {
-    const current = threads.find((thread) => thread.id === activeThreadId);
-    if (current !== undefined && isThreadVisible(current)) {
-      state.current.frozen = freezeThread(current);
-    }
-  }
-  previousThreads.current = threads;
-  return state.current.frozen;
+  const next = nextFrozenState(state, activeThreadId, threads, renderedThreads.current);
+  if (next !== state) setState(next);
+
+  useEffect(() => {
+    renderedThreads.current = threads;
+  }, [threads]);
+
+  return next.frozen;
 }
 
 function readStored(key: string): boolean | null {
@@ -80,6 +74,7 @@ function readStored(key: string): boolean | null {
 export function useStoredFlags(): {
   get(key: string): boolean | null;
   set(key: string, value: boolean): void;
+  setTemporary(key: string, value: boolean): void;
 } {
   const [flags, setFlags] = useState<Record<string, boolean | null>>({});
   const get = useCallback(
@@ -94,5 +89,9 @@ export function useStoredFlags(): {
       // Storage can be unavailable (private mode, quota); keep the session value.
     }
   }, []);
-  return { get, set };
+  // A temporary value for this session only; localStorage is left untouched.
+  const setTemporary = useCallback((key: string, value: boolean) => {
+    setFlags((previous) => ({ ...previous, [key]: value }));
+  }, []);
+  return { get, set, setTemporary };
 }
