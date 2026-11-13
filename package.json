@@ -1,7 +1,12 @@
 {
-  "name": "bb-plugin-bb-sidebar",
+  "name": "bb-plugin-attention-sidebar",
   "version": "0.1.0",
-  "private": true,
+  "description": "Puts every thread that is waiting on you, from all projects, at the top of the bb sidebar.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nosenss/bb-plugin-attention-sidebar.git"
+  },
   "type": "module",
   "engines": {
     "bb": ">=0.49",
@@ -9,7 +14,7 @@
   },
   "bb": {
     "name": "Attention sidebar",
-    "description": "Sidebar thread list: «Ждут вас» and «В работе» across all projects above collapsible project folders, with project avatars instead of provider icons.",
+    "description": "Puts every thread that is waiting on you, from all projects, at the top of the bb sidebar. Running threads get their own block, and the rest sit in collapsible project folders with project avatars instead of provider icons.",
     "branding": {
       "icon": "ListView"
     },

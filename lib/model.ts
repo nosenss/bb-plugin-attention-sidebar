@@ -385,7 +385,7 @@ export function isFolderCollapsed(
 }
 
 export function collapsedStorageKey(projectId: string): string {
-  return `bb-sidebar:collapsed:${projectId}`;
+  return `attention-sidebar:collapsed:${projectId}`;
 }
 
 /** The folder that holds a thread, or null when it sits in a top block. */

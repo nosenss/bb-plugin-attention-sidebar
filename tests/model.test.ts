@@ -425,8 +425,8 @@ describe("folder collapse", () => {
     expect(isFolderCollapsed(true, "proj_a", "proj_a")).toBe(true);
   });
 
-  it("uses the bb-sidebar:collapsed:<projectId> key", () => {
-    expect(collapsedStorageKey("proj_a")).toBe("bb-sidebar:collapsed:proj_a");
+  it("uses the attention-sidebar:collapsed:<projectId> key", () => {
+    expect(collapsedStorageKey("proj_a")).toBe("attention-sidebar:collapsed:proj_a");
   });
 
   it("finds the folder of a thread, or null for top blocks", () => {

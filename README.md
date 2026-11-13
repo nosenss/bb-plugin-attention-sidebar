@@ -1,6 +1,6 @@
-# bb-sidebar
+# Attention sidebar
 
-Свой список тредов для сайдбара bb (плагин `bb-sidebar`, слот
+Свой список тредов для сайдбара bb (плагин `attention-sidebar`, слот
 `app.slots.experimental_threadList`).
 
 Сверху вниз: **Ждут вас** (вопросы `?`, ошибки `!`, готовые `✓` из всех
@@ -16,7 +16,7 @@
 - `lib/` — чистая логика: `model.ts` (классификация и группировка),
   `avatar.ts`, `time.ts`.
 - `server.ts` — пустой бэкенд: манифест bb требует `bb.server`.
-- `skills/bb-sidebar/SKILL.md` — что делает плагин и как вернуть стандартный
+- `skills/attention-sidebar/SKILL.md` — что делает плагин и как вернуть стандартный
   список.
 
 ## Команды
@@ -30,4 +30,4 @@ bb plugin install . --yes
 ```
 
 Вернуть стандартный список: Settings → Appearance → Sidebar thread list →
-Thread list, или `bb plugin disable bb-sidebar`.
+Thread list, или `bb plugin disable attention-sidebar`.

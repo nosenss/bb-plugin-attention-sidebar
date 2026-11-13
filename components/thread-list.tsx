@@ -27,7 +27,7 @@ const BLOCK_TITLES: Record<BlockId, string> = {
 
 type TopRowProject = { id: string; name: string; isPersonal: boolean };
 
-const blockStorageKey = (block: BlockId) => `bb-sidebar:collapsed:block:${block}`;
+const blockStorageKey = (block: BlockId) => `attention-sidebar:collapsed:block:${block}`;
 
 function Chevron({ expanded }: { expanded: boolean }) {
   return (
@@ -55,7 +55,7 @@ function Block({
   onToggle: () => void;
   children: ReactNode;
 }) {
-  const listId = `bb-sidebar-block-${id}`;
+  const listId = `attention-sidebar-block-${id}`;
   return (
     <section aria-label={BLOCK_TITLES[id]} data-block={id} className="flex flex-col">
       <button
@@ -230,7 +230,7 @@ export function AttentionThreadList({
           {model.folders.map((folder) => {
             const key = collapsedStorageKey(folder.projectId);
             const collapsed = isFolderCollapsed(flags.get(key), folder.projectId, activeProjectId);
-            const listId = `bb-sidebar-folder-${folder.projectId}`;
+            const listId = `attention-sidebar-folder-${folder.projectId}`;
             return (
               <div key={folder.projectId} data-folder={folder.projectId} className="flex flex-col">
                 <div className="flex items-center">

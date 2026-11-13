@@ -100,7 +100,7 @@ describe("thread list slot", () => {
     expect(within(folderB).getAllByRole("link").map((a) => a.getAttribute("data-sidebar-thread-id"))).toEqual([
       "b-old",
     ]);
-    expect(window.localStorage.getItem("bb-sidebar:collapsed:proj_b")).toBe("0");
+    expect(window.localStorage.getItem("attention-sidebar:collapsed:proj_b")).toBe("0");
   });
 
   it("calls onNavigate after a row click", async () => {
@@ -173,7 +173,7 @@ describe("thread list slot", () => {
     });
     const folderB = slot.container.querySelector('[data-folder="proj_b"]') as HTMLElement;
     expect(within(folderB).getByRole("button", { expanded: true })).toBeTruthy();
-    expect(window.localStorage.getItem("bb-sidebar:collapsed:proj_b")).toBeNull();
+    expect(window.localStorage.getItem("attention-sidebar:collapsed:proj_b")).toBeNull();
   });
 
   it("keeps the time and the parent caption in the link's accessible content", async () => {
