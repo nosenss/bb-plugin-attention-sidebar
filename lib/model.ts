@@ -21,6 +21,7 @@ export interface SidebarThreadInput {
   pinSortKey: string | null;
   isArchived: boolean;
   isHidden: boolean;
+  createdAt: number;
   updatedAt: number;
   latestAttentionAt: number;
 }
@@ -171,6 +172,7 @@ export interface FolderRow<T extends SidebarThreadInput> {
   thread: T;
   /** Indentation level: 0 for a root, 1 for its child, and so on. */
   depth: number;
+  hasChildren: boolean;
   /** Set when the thread is a child shown as a root (its parent is elsewhere). */
   parentTitle: string | null;
 }
@@ -198,10 +200,51 @@ export interface SidebarModel<T extends SidebarThreadInput> {
   visibleCount: number;
 }
 
+export const PROJECT_SORT_LABELS = {
+  updated: "По последней активности",
+  opened: "По последнему открытию",
+  created: "По времени создания",
+  title: "По названию",
+} as const;
+
+export type ProjectSort = keyof typeof PROJECT_SORT_LABELS;
+
+export function isProjectSort(value: string | null): value is ProjectSort {
+  return value !== null && Object.hasOwn(PROJECT_SORT_LABELS, value);
+}
+
+function canNestUnder<T extends SidebarThreadInput>(
+  threads: ReadonlyMap<string, T>,
+  threadId: string,
+  parent: T,
+): boolean {
+  const seen = new Set([threadId]);
+  for (let cursor: T | undefined = parent; cursor; cursor = threads.get(cursor.parentThreadId ?? "")) {
+    if (seen.has(cursor.id)) return false;
+    seen.add(cursor.id);
+  }
+  return true;
+}
+
+export function canReparentThread<T extends SidebarThreadInput>(
+  threads: ReadonlyMap<string, T>,
+  threadId: string,
+  parentId: string,
+): boolean {
+  const thread = threads.get(threadId);
+  const parent = threads.get(parentId);
+  return Boolean(
+    thread && parent && isThreadVisible(thread) && isThreadVisible(parent) &&
+    thread.parentThreadId !== parentId && canNestUnder(threads, threadId, parent),
+  );
+}
+
 export interface BuildSidebarModelInput<T extends SidebarThreadInput> {
   threads: readonly T[];
   projects: readonly SidebarProjectInput[];
   frozen?: FrozenThread | null;
+  sortForProject?: (projectId: string) => ProjectSort;
+  openedAt?: (threadId: string) => number;
 }
 
 const REASON_ORDER: Record<AttentionReason, number> = {
@@ -233,6 +276,8 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
   threads,
   projects,
   frozen = null,
+  sortForProject = () => "updated",
+  openedAt = () => 0,
 }: BuildSidebarModelInput<T>): SidebarModel<T> {
   const visible = threads.filter(isThreadVisible);
   const byId = new Map(visible.map((thread) => [thread.id, thread]));
@@ -294,12 +339,7 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
     if (parent === null || groupOf(parent) !== "folder" || parent.projectId !== thread.projectId) {
       return null;
     }
-    const seen = new Set([thread.id]);
-    for (let cursor: T | null = parent; cursor !== null; cursor = parentOf(cursor)) {
-      if (seen.has(cursor.id)) return null;
-      seen.add(cursor.id);
-    }
-    return parent;
+    return canNestUnder(byId, thread.id, parent) ? parent : null;
   };
   const childrenOf = new Map<string, T[]>();
   const rootsByProject = new Map<string, T[]>();
@@ -330,18 +370,34 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
   const projectById = new Map(projects.map((project) => [project.id, project]));
   const folders: ProjectFolder<T>[] = [];
   for (const [projectId, roots] of rootsByProject) {
+    const sort = sortForProject(projectId);
+    const compare = (a: T, b: T) => {
+      switch (sort) {
+        case "opened":
+          return byDesc(openedAt(a.id), openedAt(b.id)) || newestFirst(a, b);
+        case "created":
+          return byDesc(a.createdAt, b.createdAt) || newestFirst(a, b);
+        case "title":
+          return a.displayTitle.localeCompare(b.displayTitle, undefined, { numeric: true }) ||
+            newestFirst(a, b);
+        default:
+          return newestFirst(a, b);
+      }
+    };
     const rows: FolderRow<T>[] = [];
     const emit = (thread: T, depth: number) => {
+      const children = childrenOf.get(thread.id) ?? [];
       rows.push({
         thread,
         depth,
+        hasChildren: children.length > 0,
         parentTitle: depth === 0 ? (parentOf(thread)?.displayTitle ?? null) : null,
       });
-      for (const child of (childrenOf.get(thread.id) ?? []).sort(newestFirst)) {
+      for (const child of children.sort(compare)) {
         emit(child, depth + 1);
       }
     };
-    for (const root of roots.sort(newestFirst)) emit(root, 0);
+    for (const root of roots.sort(compare)) emit(root, 0);
 
     const project = projectById.get(projectId);
     folders.push({
@@ -363,6 +419,20 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
   );
 
   return { attention, working, pinned, folders, visibleCount: visible.length };
+}
+
+export function visibleFolderRows<T extends SidebarThreadInput>(
+  rows: readonly FolderRow<T>[],
+  isCollapsed: (threadId: string) => boolean,
+): FolderRow<T>[] {
+  const visible: FolderRow<T>[] = [];
+  let collapsedDepth = Infinity;
+  for (const row of rows) {
+    if (row.depth > collapsedDepth) continue;
+    visible.push(row);
+    collapsedDepth = row.hasChildren && isCollapsed(row.thread.id) ? row.depth : Infinity;
+  }
+  return visible;
 }
 
 /** Every thread id in display order, for checking the "exactly once" rule. */

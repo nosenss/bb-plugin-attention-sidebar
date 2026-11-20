@@ -10,11 +10,15 @@ import {
   collapsedStorageKey,
   folderOfThread,
   isFolderCollapsed,
+  isProjectSort,
+  visibleFolderRows,
+  PROJECT_SORT_LABELS,
   type ProjectFolder,
   type TopRow,
 } from "../lib/model";
-import { useFrozenActiveThread, useStoredFlags } from "./hooks";
+import { useFrozenActiveThread, useProjectSorting, useStoredFlags } from "./hooks";
 import { ProjectAvatar } from "./project-avatar";
+import { useThreadNesting } from "./thread-nesting";
 import { ThreadRow } from "./thread-row";
 
 type BlockId = "attention" | "working" | "pinned";
@@ -26,6 +30,8 @@ const BLOCK_TITLES: Record<BlockId, string> = {
 };
 
 type TopRowProject = { id: string; name: string; isPersonal: boolean };
+
+const threadStorageKey = (threadId: string) => `attention-sidebar:collapsed:thread:${threadId}`;
 
 const blockStorageKey = (block: BlockId) => `attention-sidebar:collapsed:block:${block}`;
 
@@ -138,6 +144,13 @@ export function AttentionThreadList({
   const { status, threads, projects } = useSidebarThreads();
   const frozen = useFrozenActiveThread(activeThreadId, threads);
   const flags = useStoredFlags();
+  const { get, set } = flags;
+  const isBranchCollapsed = (threadId: string) => get(threadStorageKey(threadId)) ?? false;
+  const toggleBranch = useCallback((threadId: string, collapsed: boolean) => {
+    set(threadStorageKey(threadId), collapsed);
+  }, [set]);
+  const { sortForProject, setProjectSort, openedAt } = useProjectSorting(activeThreadId);
+  const nesting = useThreadNesting(threads);
 
   // Rows are memoized; keep the callback identity stable across host renders.
   const onNavigateRef = useRef(onNavigate);
@@ -145,8 +158,8 @@ export function AttentionThreadList({
   const handleNavigate = useCallback(() => onNavigateRef.current(), []);
 
   const model = useMemo(
-    () => buildSidebarModel<PluginSidebarThread>({ threads, projects, frozen }),
-    [threads, projects, frozen],
+    () => buildSidebarModel<PluginSidebarThread>({ threads, projects, frozen, sortForProject, openedAt }),
+    [threads, projects, frozen, sortForProject, openedAt],
   );
   // Stable per-project objects, so memoized rows are not re-rendered by a new
   // `project` prop on every list render.
@@ -197,6 +210,8 @@ export function AttentionThreadList({
             parentTitle={row.parentTitle}
             project={projectLookup(row.thread.projectId)}
             onNavigate={handleNavigate}
+            startNesting={nesting.start}
+            isDropTarget={nesting.target?.kind === "thread" && nesting.target.id === row.thread.id}
           />
         </div>
       );
@@ -209,7 +224,8 @@ export function AttentionThreadList({
   ];
 
   return (
-    <nav aria-label="Треды" className="flex flex-col gap-2 px-2 pb-2">
+    <nav aria-label="Треды" data-attention-thread-list="" className="flex flex-col gap-2 px-2 pb-2">
+      {nesting.error === null ? null : <p role="alert" className="px-2 text-xs text-destructive">{nesting.error}</p>}
       {blocks.map(({ id, rows }) =>
         rows.length === 0 ? null : (
           <Block
@@ -231,12 +247,15 @@ export function AttentionThreadList({
             const key = collapsedStorageKey(folder.projectId);
             const collapsed = isFolderCollapsed(flags.get(key), folder.projectId, activeProjectId);
             const listId = `attention-sidebar-folder-${folder.projectId}`;
+            const isDropTarget = nesting.target?.kind === "project" && nesting.target.id === folder.projectId;
             return (
               <div key={folder.projectId} data-folder={folder.projectId} className="flex flex-col">
                 <div className="flex items-center">
                   <button
                     type="button"
-                    className={headerButtonClass}
+                    className={isDropTarget ? `${headerButtonClass} ring-2 ring-inset ring-sidebar-ring` : headerButtonClass}
+                    data-project-drop-target={folder.projectId}
+                    data-nest-target={isDropTarget ? "" : undefined}
                     aria-expanded={!collapsed}
                     aria-controls={listId}
                     onClick={() => flags.set(key, !collapsed)}
@@ -253,10 +272,29 @@ export function AttentionThreadList({
                       {collapsed ? <FolderIndicator folder={folder} /> : null}
                     </span>
                   </button>
+                  {collapsed ? null : (
+                    <label className="relative flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent focus-within:ring-2 focus-within:ring-sidebar-ring">
+                      <span aria-hidden className="text-sm">↕</span>
+                      <select
+                        aria-label={`Сортировка тредов проекта «${folder.name}»`}
+                        title={PROJECT_SORT_LABELS[sortForProject(folder.projectId)]}
+                        value={sortForProject(folder.projectId)}
+                        onChange={(event) => {
+                          const sort = event.currentTarget.value;
+                          if (isProjectSort(sort)) setProjectSort(folder.projectId, sort);
+                        }}
+                        className="absolute inset-0 w-full cursor-pointer opacity-0"
+                      >
+                        {Object.entries(PROJECT_SORT_LABELS).map(([sort, label]) => (
+                          <option key={sort} value={sort}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </div>
                 {collapsed ? null : (
                   <div id={listId} role="list" className="flex flex-col gap-px">
-                    {folder.rows.map((row) => (
+                    {visibleFolderRows(folder.rows, isBranchCollapsed).map((row) => (
                       <div role="listitem" key={row.thread.id}>
                         <ThreadRow
                           thread={row.thread}
@@ -266,6 +304,10 @@ export function AttentionThreadList({
                           parentTitle={row.parentTitle}
                           project={null}
                           onNavigate={handleNavigate}
+                          startNesting={nesting.start}
+                          isDropTarget={nesting.target?.kind === "thread" && nesting.target.id === row.thread.id}
+                          branchCollapsed={row.hasChildren ? isBranchCollapsed(row.thread.id) : undefined}
+                          onToggleBranch={toggleBranch}
                         />
                       </div>
                     ))}

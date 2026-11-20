@@ -15,6 +15,7 @@ import {
 import type { AttentionReason } from "../lib/model";
 import { formatRelativeTime } from "../lib/time";
 import { useNow } from "./hooks";
+import type { StartThreadNesting } from "./thread-nesting";
 import { ProjectAvatar } from "./project-avatar";
 
 const REASON_GLYPH: Record<
@@ -55,6 +56,11 @@ export interface ThreadRowProps {
   /** Project avatar for top-block rows; null in project folders. */
   project: { id: string; name: string; isPersonal: boolean } | null;
   onNavigate: () => void;
+  startNesting: StartThreadNesting;
+  isDropTarget: boolean;
+  /** Undefined when the row has no children displayed in its folder. */
+  branchCollapsed?: boolean;
+  onToggleBranch?: (threadId: string, collapsed: boolean) => void;
 }
 
 /** The fields bb's thread menu reads, from a sidebar thread. */
@@ -148,6 +154,10 @@ export const ThreadRow = memo(function ThreadRow({
   parentTitle,
   project,
   onNavigate,
+  startNesting,
+  isDropTarget,
+  branchCollapsed,
+  onToggleBranch,
 }: ThreadRowProps) {
   const now = useNow();
   const shortcut = useSidebarThreadShortcut(thread.id);
@@ -161,24 +171,30 @@ export const ThreadRow = memo(function ThreadRow({
       <div
         data-thread-row={thread.id}
         data-active={isActive ? "true" : undefined}
+        data-nest-target={isDropTarget ? "" : undefined}
         className={cx(
           "group/row relative flex w-full items-center rounded-md text-sm text-sidebar-foreground transition-colors",
           "h-[var(--bb-sidebar-row-height)] max-md:pointer-coarse:h-[var(--bb-sidebar-row-height-coarse)]",
           "has-[[data-state=open]]:bg-sidebar-accent",
+          isDropTarget && "ring-2 ring-inset ring-sidebar-ring",
           isActive
             ? "bg-state-active"
             : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         )}
       >
         <a
-          {...splitProps}
+          onPointerDown={(event) => {
+            splitProps.onPointerDown?.(event);
+            startNesting(event, thread.id);
+          }}
           href={thread.href}
+          draggable={false}
           data-sidebar-thread-shortcut-target=""
           data-sidebar-thread-id={thread.id}
           aria-current={isActive ? "page" : undefined}
           aria-keyshortcuts={shortcut?.ariaKeyshortcuts}
           onClick={() => onNavigate()}
-          className="flex min-w-0 flex-1 items-center gap-2 self-stretch rounded-md pr-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
+          className="flex min-w-0 flex-1 items-center gap-2 self-stretch select-none rounded-md pr-2 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
           style={{ paddingLeft: `${8 + depth * 14}px` }}
         >
           {project !== null ? (
@@ -195,7 +211,7 @@ export const ThreadRow = memo(function ThreadRow({
               </span>
             ) : null}
           </span>
-          {/* Shifts left on hover/focus/open to make room for the «⋯» button. */}
+          {/* Shifts left to make room for the «⋯» button. */}
           <span className="flex shrink-0 items-center gap-2 group-hover/row:mr-6 group-focus-within/row:mr-6 group-has-[[data-state=open]]/row:mr-6">
             {shortcut !== null ? (
               <kbd className="pointer-events-none shrink-0 rounded-sm bg-state-hover px-1.5 py-0.5 font-sans text-xs leading-none text-subtle-foreground">
@@ -207,6 +223,22 @@ export const ThreadRow = memo(function ThreadRow({
             <StatusGlyphs thread={thread} reason={reason} />
           </span>
         </a>
+        {branchCollapsed !== undefined && onToggleBranch ? (
+          <button
+            type="button"
+            aria-expanded={!branchCollapsed}
+            aria-label={`${branchCollapsed ? "Развернуть" : "Свернуть"} дочерние треды «${title}»`}
+            onClick={() => onToggleBranch(thread.id, !branchCollapsed)}
+            className="absolute top-0 flex h-full w-[18px] items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            style={{ left: `${depth * 14 - 10}px` }}
+          >
+            <Icon
+              name="ChevronRight"
+              aria-hidden
+              className={cx("size-3 transition-transform duration-150", !branchCollapsed && "rotate-90")}
+            />
+          </button>
+        ) : null}
         <ThreadActionsMenu
           thread={actionTarget}
           align="start"

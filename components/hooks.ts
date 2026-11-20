@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  isProjectSort,
   nextFrozenState,
+  type ProjectSort,
   type FrozenState,
   type FrozenThread,
   type SidebarThreadInput,
@@ -62,12 +64,8 @@ export function useFrozenActiveThread(
 }
 
 function readStored(key: string): boolean | null {
-  try {
-    const value = window.localStorage.getItem(key);
-    return value === "1" ? true : value === "0" ? false : null;
-  } catch {
-    return null;
-  }
+  const value = readStorage(key);
+  return value === "1" ? true : value === "0" ? false : null;
 }
 
 /** Collapsed flags persisted in localStorage; null means "never set". */
@@ -83,15 +81,58 @@ export function useStoredFlags(): {
   );
   const set = useCallback((key: string, value: boolean) => {
     setFlags((previous) => ({ ...previous, [key]: value }));
-    try {
-      window.localStorage.setItem(key, value ? "1" : "0");
-    } catch {
-      // Storage can be unavailable (private mode, quota); keep the session value.
-    }
+    writeStorage(key, value ? "1" : "0");
   }, []);
   // A temporary value for this session only; localStorage is left untouched.
   const setTemporary = useCallback((key: string, value: boolean) => {
     setFlags((previous) => ({ ...previous, [key]: value }));
   }, []);
   return { get, set, setTemporary };
+}
+
+function readStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Keep the session state when browser storage is unavailable.
+  }
+}
+
+const sortKey = (projectId: string) => `attention-sidebar:sort:${projectId}`;
+const openedKey = (threadId: string) => `attention-sidebar:opened:${threadId}`;
+
+export function useProjectSorting(activeThreadId: string | null) {
+  const [sorts, setSorts] = useState<Partial<Record<string, ProjectSort>>>({});
+  const [openedThreads, setOpenedThreads] = useState<Partial<Record<string, number>>>({});
+
+  useEffect(() => {
+    if (activeThreadId === null) return;
+    const openedAt = Date.now();
+    setOpenedThreads((previous) => ({ ...previous, [activeThreadId]: openedAt }));
+    writeStorage(openedKey(activeThreadId), String(openedAt));
+  }, [activeThreadId]);
+
+  const sortForProject = useCallback((projectId: string): ProjectSort => {
+    const saved = sorts[projectId] ?? readStorage(sortKey(projectId));
+    return isProjectSort(saved) ? saved : "updated";
+  }, [sorts]);
+
+  const setProjectSort = useCallback((projectId: string, sort: ProjectSort) => {
+    setSorts((previous) => ({ ...previous, [projectId]: sort }));
+    writeStorage(sortKey(projectId), sort);
+  }, []);
+
+  const openedAt = useCallback((threadId: string) => {
+    return openedThreads[threadId] ?? (Number(readStorage(openedKey(threadId))) || 0);
+  }, [openedThreads]);
+
+  return { sortForProject, setProjectSort, openedAt };
 }

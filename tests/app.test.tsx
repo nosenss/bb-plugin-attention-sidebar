@@ -74,7 +74,7 @@ describe("thread list slot", () => {
     // Folders: the active project's is open, the other one is collapsed.
     const folderA = slot.container.querySelector('[data-folder="proj_a"]') as HTMLElement;
     const folderB = slot.container.querySelector('[data-folder="proj_b"]') as HTMLElement;
-    expect(within(folderA).getByRole("button", { expanded: true })).toBeTruthy();
+    expect(within(folderA).getByRole("button", { name: /veber-writing/, expanded: true })).toBeTruthy();
     expect(within(folderB).getByRole("button", { expanded: false })).toBeTruthy();
     expect(within(folderA).getAllByRole("link").map((a) => a.textContent)).toEqual([
       expect.stringContaining("Корень"),
@@ -202,11 +202,131 @@ describe("thread list slot", () => {
     });
     const row = slot.container.querySelector('[data-thread-row="q"]') as HTMLElement;
     const trailing = row.querySelector("kbd")!.parentElement!;
-    // The trailing group shifts away from the button on hover/focus/open.
+    // The trailing group leaves room for the menu.
     expect(trailing.className).toContain("group-hover/row:mr-6");
     expect(trailing.className).toContain("group-focus-within/row:mr-6");
     expect(trailing.className).toContain("group-has-[[data-state=open]]/row:mr-6");
     expect(trailing.className).not.toContain("invisible");
     expect(row.querySelector("kbd")!.textContent).toBe("⌘1");
   });
+});
+
+it("stores project sort independently and records opening an already-read thread", async () => {
+  const list = await threadList();
+  const entries = [
+    makeThread({ id: "newer", title: "Я", updatedAt: T0 }),
+    makeThread({ id: "opened", title: "Б", createdAt: T0 - 150_000, updatedAt: T0 - 100_000 }),
+    makeThread({ id: "sibling", title: "А", updatedAt: T0 - 200_000 }),
+    makeThread({ id: "child", parentThreadId: "newer", title: "А", updatedAt: T0 + 100_000 }),
+    makeThread({ id: "other", projectId: "proj_b" }),
+  ];
+  const options = { sidebarThreads: { status: "ready" as const, threads: entries, projects } };
+  const slot = renderSlot(list, props({ activeThreadId: "opened" }), options);
+  const folder = within(slot.container.querySelector('[data-folder="proj_a"]') as HTMLElement);
+  const sort = folder.getByRole("combobox");
+  const ids = () => folder.getAllByRole("link").map((link) => link.getAttribute("data-sidebar-thread-id"));
+
+  expect(ids()).toEqual(["newer", "child", "opened", "sibling"]);
+  fireEvent.change(sort, { target: { value: "opened" } });
+  expect(ids()).toEqual(["opened", "newer", "child", "sibling"]);
+  fireEvent.change(sort, { target: { value: "created" } });
+  expect(ids()).toEqual(["opened", "newer", "child", "sibling"]);
+  fireEvent.change(sort, { target: { value: "title" } });
+  expect(ids()).toEqual(["sibling", "opened", "newer", "child"]);
+  slot.lifecycle.unmount();
+
+  const reopened = renderSlot(list, props({ activeProjectId: "proj_b" }), options);
+  const folderA = within(reopened.container.querySelector('[data-folder="proj_a"]') as HTMLElement);
+  const folderB = within(reopened.container.querySelector('[data-folder="proj_b"]') as HTMLElement);
+  fireEvent.click(folderA.getByRole("button", { expanded: false }));
+  expect((folderA.getByRole("combobox") as HTMLSelectElement).value).toBe("title");
+  expect((folderB.getByRole("combobox") as HTMLSelectElement).value).toBe("updated");
+});
+
+it("nests under a thread or returns to its project while rejecting invalid drops", async () => {
+  const update = vi.fn().mockResolvedValue(undefined);
+  const slot = renderSlot(await threadList(), props(), {
+    sidebarThreads: { status: "ready", threads, projects },
+    sdk: { threads: { update } },
+  });
+  const row = (id: string) => slot.container.querySelector(`[data-thread-row="${id}"]`)!;
+  const pointer = (target: Element, type: string, clientY: number) => {
+    const event = new MouseEvent(type, { bubbles: true, clientY });
+    fireEvent(target, Object.assign(event, { pointerId: 1, pointerType: "mouse" }));
+  };
+
+  const start = (id: string) => pointer(row(id).querySelector("a")!, "pointerdown", 0);
+  start("a-root");
+  pointer(row("a-child"), "pointermove", 32);
+  expect(row("a-child").hasAttribute("data-nest-target")).toBe(false);
+  pointer(row("a-child"), "pointerup", 32);
+  expect(update).not.toHaveBeenCalled();
+
+  start("a-child");
+  pointer(row("busy"), "pointermove", 2);
+  expect(row("busy").hasAttribute("data-nest-target")).toBe(false);
+  pointer(row("busy"), "pointermove", 32);
+  expect(row("busy").hasAttribute("data-nest-target")).toBe(true);
+  fireEvent.keyDown(document, { key: "Escape" });
+  pointer(row("busy"), "pointerup", 32);
+  expect(update).not.toHaveBeenCalled();
+
+  const project = (id: string) => slot.container.querySelector(`[data-project-drop-target="${id}"]`)!;
+  const dragOntoProject = (threadId: string, projectId: string, highlighted: boolean) => {
+    start(threadId);
+    pointer(project(projectId), "pointermove", 32);
+    expect(project(projectId).hasAttribute("data-nest-target")).toBe(highlighted);
+    pointer(project(projectId), "pointerup", 32);
+  };
+
+  dragOntoProject("a-child", "proj_b", false);
+  dragOntoProject("a-root", "proj_a", false);
+  expect(update).not.toHaveBeenCalled();
+  dragOntoProject("a-child", "proj_a", true);
+  expect(update).toHaveBeenCalledExactlyOnceWith({ threadId: "a-child", parentThreadId: null });
+  await Promise.resolve();
+  update.mockClear();
+
+  start("a-child");
+  pointer(row("busy"), "pointermove", 32);
+  pointer(row("busy"), "pointerup", 32);
+  expect(update).toHaveBeenCalledExactlyOnceWith({ threadId: "a-child", parentThreadId: "busy" });
+  expect(row("busy").hasAttribute("data-nest-target")).toBe(false);
+});
+
+it("keeps branch visibility independent across sidebar mounts", async () => {
+  const list = await threadList();
+  const entries = [
+    ...threads,
+    makeThread({ id: "a-grandchild", parentThreadId: "a-child" }),
+    makeThread({ id: "second-root" }),
+    makeThread({ id: "second-child", parentThreadId: "second-root" }),
+    makeThread({ id: "needs-reply", parentThreadId: "a-root", hasPendingInteraction: true }),
+  ];
+  const options = { sidebarThreads: { status: "ready" as const, threads: entries, projects } };
+  const onNavigate = vi.fn();
+  const slot = renderSlot(list, props({ onNavigate }), options);
+  const row = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-thread-row="${id}"]`);
+  const branch = (container: HTMLElement, id: string) =>
+    within(row(container, id) as HTMLElement).getByRole("button", { name: /дочерние треды/ });
+
+  fireEvent.click(branch(slot.container, "a-child"));
+  expect(row(slot.container, "a-grandchild")).toBeNull();
+  expect(row(slot.container, "a-child")).not.toBeNull();
+  fireEvent.click(branch(slot.container, "a-root"));
+  expect(row(slot.container, "a-child")).toBeNull();
+  expect(row(slot.container, "second-child")).not.toBeNull();
+  expect(row(slot.container, "needs-reply")?.closest('[data-block="attention"]')).not.toBeNull();
+  expect(onNavigate).not.toHaveBeenCalled();
+  slot.lifecycle.unmount();
+
+  const reopened = renderSlot(list, props(), options);
+  expect(branch(reopened.container, "a-root").getAttribute("aria-expanded")).toBe("false");
+  expect(branch(reopened.container, "second-root").getAttribute("aria-expanded")).toBe("true");
+  fireEvent.click(branch(reopened.container, "a-root"));
+  expect(branch(reopened.container, "a-child").getAttribute("aria-expanded")).toBe("false");
+  expect(row(reopened.container, "a-grandchild")).toBeNull();
+  fireEvent.click(branch(reopened.container, "a-child"));
+  expect(row(reopened.container, "a-grandchild")).not.toBeNull();
 });
