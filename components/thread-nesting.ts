@@ -37,7 +37,13 @@ export function useThreadNesting(threads: readonly PluginSidebarThread[]) {
   const reparent = useCallback(async (threadId: string, parentThreadId: string | null) => {
     saving.current = true;
     try {
-      await sdk.threads.update({ threadId, parentThreadId });
+      // Nesting here only groups rows in the sidebar: keep the new parent's
+      // agent from being woken by the child's turns.
+      await sdk.threads.update(
+        parentThreadId === null
+          ? { threadId, parentThreadId }
+          : { threadId, parentThreadId, parentNotifications: "off" },
+      );
     } catch {
       setError("Не удалось изменить вложенность треда. Попробуйте ещё раз.");
     } finally {

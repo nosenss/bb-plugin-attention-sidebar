@@ -290,7 +290,7 @@ it("nests under a thread or returns to its project while rejecting invalid drops
   start("a-child");
   pointer(row("busy"), "pointermove", 32);
   pointer(row("busy"), "pointerup", 32);
-  expect(update).toHaveBeenCalledExactlyOnceWith({ threadId: "a-child", parentThreadId: "busy" });
+  expect(update).toHaveBeenCalledExactlyOnceWith({ threadId: "a-child", parentThreadId: "busy", parentNotifications: "off" });
   expect(row("busy").hasAttribute("data-nest-target")).toBe(false);
 });
 
