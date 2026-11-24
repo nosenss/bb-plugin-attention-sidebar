@@ -112,6 +112,30 @@ describe("thread list slot", () => {
     ).toContain("Ждут вас");
   });
 
+  it("renders sort options, the untitled fallback and the load error in Russian", async () => {
+    setLocale("ru");
+    const list = await threadList();
+    const untitled = makeThread({ id: "blank", projectId: "proj_a", title: "" });
+    const slot = renderSlot(list, props(), {
+      sidebarThreads: { status: "ready", threads: [untitled], projects },
+    });
+    const folderA = slot.container.querySelector('[data-folder="proj_a"]') as HTMLElement;
+    expect(Array.from(folderA.querySelectorAll("option")).map((option) => option.textContent)).toEqual([
+      "По последней активности",
+      "По последнему открытию",
+      "По времени создания",
+      "По названию",
+    ]);
+    expect(folderA.querySelector("select")?.getAttribute("aria-label")).toBe(
+      "Сортировка тредов проекта «veber-writing»",
+    );
+    expect(folderA.querySelector('[data-sidebar-thread-id="blank"]')?.textContent).toContain("Без названия");
+    slot.lifecycle.unmount();
+
+    const failed = renderSlot(list, props(), { sidebarThreads: { status: "error", threads: [], projects: [] } });
+    expect(failed.getByText("Не удалось загрузить треды.")).toBeTruthy();
+  });
+
   it("shows the personal project's avatar as Me, or Я in Russian", async () => {
     const personal = [makeProject({ id: "proj_me", name: "Personal", isPersonal: true })];
     const mine = [makeThread({ id: "mine", projectId: "proj_me", hasPendingInteraction: true })];

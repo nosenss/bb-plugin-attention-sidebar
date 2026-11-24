@@ -22,6 +22,10 @@ describe("formatRelativeTime (en)", () => {
     expect(formatRelativeTime(NOW - DAY - HOUR, NOW)).toBe("yesterday");
   });
 
+  it("keeps 2 days numeric instead of 'day before yesterday'", () => {
+    expect(formatRelativeTime(NOW - 2 * DAY - HOUR, NOW)).toMatch(/^2\s?d/u);
+  });
+
   it("uses days, weeks, months, years", () => {
     expect(formatRelativeTime(NOW - 3 * DAY, NOW)).toMatch(/^3\s?d/u);
     expect(formatRelativeTime(NOW - 14 * DAY, NOW)).toMatch(/^2\s?w/u);
@@ -29,9 +33,9 @@ describe("formatRelativeTime (en)", () => {
     expect(formatRelativeTime(NOW - 800 * DAY, NOW)).toMatch(/^2\s?y/u);
   });
 
-  it("never contains a minus, 'ago' or 'in'", () => {
+  it("never contains a minus or 'ago'", () => {
     for (const ago of [2 * MIN, 3 * HOUR, 4 * DAY, 20 * DAY, 200 * DAY, 400 * DAY]) {
-      expect(formatRelativeTime(NOW - ago, NOW)).not.toMatch(/[-−]|\bago\b|\bin\b/u);
+      expect(formatRelativeTime(NOW - ago, NOW)).not.toMatch(/[-−]|\bago\b/u);
     }
   });
 });
@@ -52,6 +56,11 @@ describe("formatRelativeTime (ru)", () => {
   it("says вчера for one day", () => {
     setLocale("ru");
     expect(formatRelativeTime(NOW - DAY - HOUR, NOW)).toBe("вчера");
+  });
+
+  it("keeps 2 days numeric instead of позавчера", () => {
+    setLocale("ru");
+    expect(formatRelativeTime(NOW - 2 * DAY - HOUR, NOW)).toMatch(/^2\s?дн/u);
   });
 
   it("uses days, weeks, months, years", () => {

@@ -55,7 +55,12 @@ export function formatRelativeTime(timestamp: number, now: number): string {
   if (elapsed < MINUTE) return t().timeNow;
   if (elapsed < HOUR) return compact(numericAlways, Math.floor(elapsed / MINUTE), "minute");
   if (elapsed < DAY) return compact(numericAlways, Math.floor(elapsed / HOUR), "hour");
-  if (elapsed < WEEK) return compact(numericAuto, Math.floor(elapsed / DAY), "day");
+  if (elapsed < WEEK) {
+    // Only exactly one day reads "yesterday"; 2-6 days stay numeric, since
+    // "auto" would give "the day before yesterday" in Russian.
+    const days = Math.floor(elapsed / DAY);
+    return compact(days === 1 ? numericAuto : numericAlways, days, "day");
+  }
   if (elapsed < MONTH) return compact(numericAlways, Math.floor(elapsed / WEEK), "week");
   if (elapsed < YEAR) return compact(numericAlways, Math.floor(elapsed / MONTH), "month");
   return compact(numericAlways, Math.floor(elapsed / YEAR), "year");

@@ -36,6 +36,33 @@ describe("setLocale", () => {
     expect(t().blocks.attention).toBe("Ждут вас");
   });
 
+  it("has Russian sort labels, fallbacks and error messages", () => {
+    setLocale("ru");
+    expect(t().sortLabels).toEqual({
+      updated: "По последней активности",
+      opened: "По последнему открытию",
+      created: "По времени создания",
+      title: "По названию",
+    });
+    expect(t().noProject).toBe("Без проекта");
+    expect(t().untitled).toBe("Без названия");
+    expect(t().loadError).toBe("Не удалось загрузить треды.");
+    expect(t().nestingError).toBe("Не удалось изменить вложенность треда. Попробуйте ещё раз.");
+  });
+
+  it("has English sort labels, fallbacks and error messages", () => {
+    expect(t().sortLabels).toEqual({
+      updated: "By latest activity",
+      opened: "By last opened",
+      created: "By creation time",
+      title: "By title",
+    });
+    expect(t().noProject).toBe("No project");
+    expect(t().untitled).toBe("Untitled");
+    expect(t().loadError).toBe("Couldn't load threads.");
+    expect(t().nestingError).toBe("Couldn't change the thread's nesting. Try again.");
+  });
+
   it("formats parameterized strings in both languages", () => {
     expect(t().folderIndicator("attention", 3)).toBe("Threads in “Waiting for you”: 3");
     expect(t().toggleBranchLabel("A", true)).toBe("Expand child threads of “A”");

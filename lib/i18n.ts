@@ -73,7 +73,7 @@ const en: Messages = {
   reasonLabels: {
     question: "Waiting for your answer: a question or an approval",
     error: "Error",
-    done: "Finished, not read yet",
+    done: "Finished, unread",
   },
   childThreadOf: (parentTitle) => `Child of: ${parentTitle}`,
   toggleBranchLabel: (title, collapsed) =>
@@ -81,7 +81,7 @@ const en: Messages = {
   threadActionsLabel: (title) => `Thread actions for “${title}”`,
   nestingError: "Couldn't change the thread's nesting. Try again.",
   timeNow: "now",
-  timeSuffix: /\b(?:ago|in)\b/giu,
+  timeSuffix: /\bago\b/giu,
 };
 
 const ru: Messages = {

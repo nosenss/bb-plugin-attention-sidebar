@@ -11,6 +11,7 @@ import {
   nextFrozenState,
   type SidebarModel,
 } from "../lib/model";
+import { setLocale } from "../lib/i18n";
 import { makeProject, makeThread, T0 } from "./fixtures";
 
 const projects = [
@@ -271,6 +272,12 @@ describe("buildSidebarModel", () => {
   it("names folders of unknown projects", () => {
     const model = build([makeThread({ projectId: "proj_unknown" })]);
     expect(model.folders[0]!.name).toBe("No project");
+  });
+
+  it("names folders of unknown projects in Russian", () => {
+    setLocale("ru");
+    const model = build([makeThread({ projectId: "proj_unknown" })]);
+    expect(model.folders[0]!.name).toBe("Без проекта");
   });
 
   it("lists every visible thread exactly once in a mixed list", () => {
