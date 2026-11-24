@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useSdk, type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { t } from "../lib/i18n";
 import { canReparentThread, isThreadVisible } from "../lib/model";
 
 const DRAG_DISTANCE = 6;
@@ -45,7 +46,7 @@ export function useThreadNesting(threads: readonly PluginSidebarThread[]) {
           : { threadId, parentThreadId, parentNotifications: "off" },
       );
     } catch {
-      setError("Не удалось изменить вложенность треда. Попробуйте ещё раз.");
+      setError(t().nestingError);
     } finally {
       saving.current = false;
     }

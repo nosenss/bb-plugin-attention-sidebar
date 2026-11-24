@@ -2,9 +2,9 @@
 
 A thread list for the bb sidebar that is organised around what needs you, not around which project a thread belongs to. From top to bottom:
 
-- **Ждут вас** ("Waiting for you"): threads from every project that need a human. A `?` marks a question or an approval request, `!` marks an error or a failed queued message, and `✓` marks a finished thread you have not read yet. Questions come first, then errors, then finished threads, newest first inside each kind.
-- **В работе** ("In progress"): threads whose agent is running, including starting, stopping, workflow, background agent, background command, plan mode and queued-message states.
-- **Закреплённые** ("Pinned"): pinned threads in bb's own pin order.
+- **Waiting for you** («Ждут вас» in Russian): threads from every project that need a human. A `?` marks a question or an approval request, `!` marks an error or a failed queued message, and `✓` marks a finished thread you have not read yet. Questions come first, then errors, then finished threads, newest first inside each kind.
+- **In progress** («В работе»): threads whose agent is running, including starting, stopping, workflow, background agent, background command, plan mode and queued-message states.
+- **Pinned** («Закреплённые»): pinned threads in bb's own pin order.
 - **Project folders**: all other threads, grouped by project with the project avatar, name and thread count. Folders are ordered by latest activity, and child threads are indented under their parent.
 
 Each thread appears exactly once. A thread that needs attention or is running shows in the top blocks even if it is pinned or is a child thread; a child shown away from its parent carries a `↳ parent title` caption.
@@ -18,10 +18,10 @@ Each thread appears exactly once. A thread that needs attention or is running sh
 - Every block and folder can be collapsed. The state is kept in your browser's local storage, per browser.
 - Drag a row onto another thread to make it a child of that thread; drag it onto its project folder header to move it back to the top level. The link is saved in bb, with the parent's notifications about the child turned off, so nesting never wakes the parent's agent. A parent row in a folder has an arrow that collapses or expands its branch.
 - An open folder has a `↕` button that picks the thread order for that folder: latest activity (the default), last opened, creation time, or title. A parent always stays above its children.
-- Right-click a row, or use its `⋯` button, to open bb's own thread menu (pin, rename, archive and so on). Rows show a relative time such as "5 мин", or the keyboard shortcut label when the thread has one.
+- Right-click a row, or use its `⋯` button, to open bb's own thread menu (pin, rename, archive and so on). Rows show a relative time such as "5m", or the keyboard shortcut label when the thread has one.
 
 ## Requirements and limits
 
 - The plugin is frontend-only: it needs no account, no external service and no separate install. It keeps folder, branch and sort state and the times you opened threads in your browser's local storage; the only change it makes in bb is the parent link you set by dragging.
-- The interface of the plugin is in Russian: block titles, tooltips, accessibility labels, the loading and empty states, and relative times. There is no English interface and no language setting.
+- The interface is in English by default and switches to Russian automatically when the client's language is Russian (`navigator.languages` / `navigator.language` starts with `ru`). The language is detected once, when the plugin loads; there is no language setting. Block titles, tooltips, accessibility labels, the loading and empty states, and relative times all follow it.
 - It replaces bb's thread list in the sidebar. To go back, choose bb's own **Thread list** under Settings → Appearance → Sidebar thread list, or disable the plugin.

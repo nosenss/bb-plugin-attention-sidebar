@@ -12,29 +12,24 @@ import {
   type PluginSidebarThread,
   type PluginThreadActionTarget,
 } from "@get-bb/plugin-sdk/app";
+import { t } from "../lib/i18n";
 import type { AttentionReason } from "../lib/model";
 import { formatRelativeTime } from "../lib/time";
 import { useNow } from "./hooks";
 import type { StartThreadNesting } from "./thread-nesting";
 import { ProjectAvatar } from "./project-avatar";
 
-const REASON_GLYPH: Record<
-  AttentionReason,
-  { symbol: string; label: string; className: string }
-> = {
+const REASON_GLYPH: Record<AttentionReason, { symbol: string; className: string }> = {
   question: {
     symbol: "?",
-    label: "Ждёт ответа: вопрос или подтверждение",
     className: "text-[var(--warning-text)] bg-[color-mix(in_oklab,var(--warning)_22%,transparent)]",
   },
   error: {
     symbol: "!",
-    label: "Ошибка",
     className: "text-destructive bg-[color-mix(in_oklab,var(--destructive)_18%,transparent)]",
   },
   done: {
     symbol: "✓",
-    label: "Готово, не прочитано",
     className:
       "text-[var(--success-foreground)] bg-[color-mix(in_oklab,var(--success)_20%,transparent)]",
   },
@@ -49,7 +44,7 @@ export interface ThreadRowProps {
   isActive: boolean;
   /** Indentation level inside a project folder; 0 elsewhere. */
   depth: number;
-  /** Set in «Ждут вас»: draws ✓ ? ! instead of bb's status glyph. */
+  /** Set in "Waiting for you": draws ✓ ? ! instead of bb's status glyph. */
   reason: AttentionReason | null;
   /** "↳ parent" caption for a child shown outside its parent. */
   parentTitle: string | null;
@@ -85,11 +80,12 @@ function toActionTarget(thread: PluginSidebarThread): PluginThreadActionTarget {
 
 function ReasonGlyph({ reason }: { reason: AttentionReason }) {
   const glyph = REASON_GLYPH[reason];
+  const label = t().reasonLabels[reason];
   return (
     <span
       role="img"
-      aria-label={glyph.label}
-      title={glyph.label}
+      aria-label={label}
+      title={label}
       data-attention-reason={reason}
       className={cx(
         "inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold leading-none",
@@ -103,7 +99,7 @@ function ReasonGlyph({ reason }: { reason: AttentionReason }) {
 
 /**
  * bb's own status for the row, plus a status another plugin set on it. In
- * «Ждут вас» the reason glyph replaces bb's indicator (it is the same
+ * "Waiting for you" the reason glyph replaces bb's indicator (it is the same
  * information), but another plugin's row status stays beside it.
  */
 function StatusGlyphs({
@@ -162,7 +158,7 @@ export const ThreadRow = memo(function ThreadRow({
   const now = useNow();
   const shortcut = useSidebarThreadShortcut(thread.id);
   const { splitProps } = useSidebarThreadSplit(thread.id);
-  const title = thread.displayTitle || thread.titleFallback || "Без названия";
+  const title = thread.displayTitle || thread.titleFallback || t().untitled;
   const time = formatRelativeTime(thread.updatedAt, now);
   const actionTarget = useMemo(() => toActionTarget(thread), [thread]);
 
@@ -205,7 +201,7 @@ export const ThreadRow = memo(function ThreadRow({
             {parentTitle !== null ? (
               <span
                 className="min-w-0 max-w-[45%] shrink-[2] truncate text-xs text-muted-foreground"
-                title={`Дочерний тред: ${parentTitle}`}
+                title={t().childThreadOf(parentTitle)}
               >
                 ↳ {parentTitle}
               </span>
@@ -227,7 +223,7 @@ export const ThreadRow = memo(function ThreadRow({
           <button
             type="button"
             aria-expanded={!branchCollapsed}
-            aria-label={`${branchCollapsed ? "Развернуть" : "Свернуть"} дочерние треды «${title}»`}
+            aria-label={t().toggleBranchLabel(title, branchCollapsed)}
             onClick={() => onToggleBranch(thread.id, !branchCollapsed)}
             className="absolute top-0 flex h-full w-[18px] items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             style={{ left: `${depth * 14 - 10}px` }}
@@ -247,7 +243,7 @@ export const ThreadRow = memo(function ThreadRow({
             <button
               {...props}
               type="button"
-              aria-label={`Действия с тредом «${title}»`}
+              aria-label={t().threadActionsLabel(title)}
               className={cx(
                 props.className,
                 "absolute top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground",

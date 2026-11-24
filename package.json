@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-attention-sidebar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Puts every thread that is waiting on you, from all projects, at the top of the bb sidebar.",
   "license": "MIT",
   "repository": {

@@ -3,6 +3,8 @@
  * color from the project id. Pure, so it is unit-tested without a DOM.
  */
 
+import { t } from "./i18n";
+
 const LETTER = /\p{L}/u;
 const LEADING_NON_LETTERS = /^[^\p{L}]+/u;
 /** Separators between words: `-`, `_`, `.`, and whitespace. */
@@ -20,13 +22,14 @@ function firstLetter(word: string): string | null {
 /**
  * The avatar text for a project: first letters of the first two words, or the
  * first two letters of a one-word name. Leading emoji and other non-letters
- * are skipped; an empty name gives "?" and the personal project gives "Я".
+ * are skipped; an empty name gives "?" and the personal project gives
+ * the localized "Me".
  */
 export function projectInitials(
   name: string | null | undefined,
   isPersonal = false,
 ): string {
-  if (isPersonal) return "Я";
+  if (isPersonal) return t().personalInitials;
   const trimmed = (name ?? "").replace(LEADING_NON_LETTERS, "");
   if (trimmed === "") return "?";
 

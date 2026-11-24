@@ -6,6 +6,7 @@ import {
   projectColor,
   projectInitials,
 } from "../lib/avatar";
+import { setLocale } from "../lib/i18n";
 
 describe("projectInitials", () => {
   it.each([
@@ -46,7 +47,9 @@ describe("projectInitials", () => {
     expect(projectInitials(null)).toBe("?");
   });
 
-  it("gives Я for the personal project", () => {
+  it("gives Me for the personal project, Я in Russian", () => {
+    expect(projectInitials("Personal", true)).toBe("Me");
+    setLocale("ru");
     expect(projectInitials("Personal", true)).toBe("Я");
   });
 });
