@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginThreadListProps } from "@get-bb/plugin-sdk/app";
+import { setLocale } from "../lib/i18n";
 import { makeProject, makeThread, T0 } from "./fixtures";
 
 const projects = [
@@ -65,8 +66,8 @@ describe("thread list slot", () => {
         node.getAttribute("aria-label"),
       ]),
     ).toEqual([
-      ["question", "?", expect.stringContaining("Ждёт ответа")],
-      ["done", "✓", expect.stringContaining("Готово")],
+      ["question", "?", expect.stringContaining("Waiting for your answer")],
+      ["done", "✓", expect.stringContaining("Finished")],
     ]);
     // Top-block rows carry the project avatar.
     expect(attention.querySelector('[data-project-avatar="proj_b"]')?.textContent).toBe("BS");
@@ -89,6 +90,44 @@ describe("thread list slot", () => {
     );
     expect(ids).not.toContain("secret");
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("renders block titles and labels in Russian when the locale is ru", async () => {
+    setLocale("ru");
+    const slot = renderSlot(await threadList(), props(), {
+      sidebarThreads: { status: "ready", threads, projects },
+    });
+    const title = (block: string) =>
+      slot.container.querySelector(`[data-block="${block}"] button`)?.textContent;
+    expect(title("attention")).toContain("Ждут вас");
+    expect(title("working")).toContain("В работе");
+    expect(title("pinned")).toContain("Закреплённые");
+    expect(slot.container.querySelector("[data-attention-thread-list]")?.getAttribute("aria-label")).toBe("Треды");
+    expect(
+      slot.container.querySelector('[data-attention-reason="question"]')?.getAttribute("aria-label"),
+    ).toContain("Ждёт ответа");
+    const folderB = slot.container.querySelector('[data-folder="proj_b"]') as HTMLElement;
+    expect(
+      folderB.querySelector('[data-folder-indicator="attention"]')?.getAttribute("aria-label"),
+    ).toContain("Ждут вас");
+  });
+
+  it("shows the personal project's avatar as Me, or Я in Russian", async () => {
+    const personal = [makeProject({ id: "proj_me", name: "Personal", isPersonal: true })];
+    const mine = [makeThread({ id: "mine", projectId: "proj_me", hasPendingInteraction: true })];
+    const avatar = (container: HTMLElement) =>
+      container.querySelector('[data-block="attention"] [data-project-avatar]')?.textContent;
+    const list = await threadList();
+    const english = renderSlot(list, props(), {
+      sidebarThreads: { status: "ready", threads: mine, projects: personal },
+    });
+    expect(avatar(english.container)).toBe("Me");
+    english.lifecycle.unmount();
+    setLocale("ru");
+    const russian = renderSlot(list, props(), {
+      sidebarThreads: { status: "ready", threads: mine, projects: personal },
+    });
+    expect(avatar(russian.container)).toBe("Я");
   });
 
   it("expands a folder and remembers it in localStorage", async () => {
@@ -120,11 +159,11 @@ describe("thread list slot", () => {
   it("shows a skeleton while loading and a message when empty", async () => {
     const list = await threadList();
     const loading = renderSlot(list, props(), { sidebarThreads: { status: "loading", threads: [], projects: [] } });
-    expect(loading.getByLabelText("Загрузка тредов")).toBeTruthy();
+    expect(loading.getByLabelText("Loading threads")).toBeTruthy();
     loading.lifecycle.unmount();
 
     const empty = renderSlot(list, props(), { sidebarThreads: { status: "ready", threads: [], projects } });
-    expect(empty.getByText("Тредов пока нет")).toBeTruthy();
+    expect(empty.getByText("No threads yet")).toBeTruthy();
   });
 
   it("marks a collapsed folder when its project has threads in the top blocks", async () => {
@@ -132,10 +171,10 @@ describe("thread list slot", () => {
       sidebarThreads: { status: "ready", threads, projects },
     });
     const folderB = slot.container.querySelector('[data-folder="proj_b"]') as HTMLElement;
-    // proj_b has a question in «Ждут вас»; its folder is collapsed.
+    // proj_b has a question in “Waiting for you”; its folder is collapsed.
     expect(
       folderB.querySelector('[data-folder-indicator="attention"]')?.getAttribute("aria-label"),
-    ).toContain("Ждут вас");
+    ).toContain("Waiting for you");
 
     // Expanded folders show no indicator; neither do projects without activity.
     const folderA = slot.container.querySelector('[data-folder="proj_a"]') as HTMLElement;
@@ -309,7 +348,7 @@ it("keeps branch visibility independent across sidebar mounts", async () => {
   const row = (container: HTMLElement, id: string) =>
     container.querySelector(`[data-thread-row="${id}"]`);
   const branch = (container: HTMLElement, id: string) =>
-    within(row(container, id) as HTMLElement).getByRole("button", { name: /дочерние треды/ });
+    within(row(container, id) as HTMLElement).getByRole("button", { name: /child threads/ });
 
   fireEvent.click(branch(slot.container, "a-child"));
   expect(row(slot.container, "a-grandchild")).toBeNull();

@@ -4,6 +4,8 @@
  * lives here and is unit-tested.
  */
 
+import { t } from "./i18n";
+
 /** The fields of bb's `PluginSidebarThread` this module reads. */
 export interface SidebarThreadInput {
   id: string;
@@ -159,7 +161,7 @@ export function nextFrozenState(
 export interface TopRow<T extends SidebarThreadInput> {
   thread: T;
   /**
-   * Live reason, set only for rows in «Ждут вас». A frozen active thread that
+   * Live reason, set only for rows in "Waiting for you". A frozen active thread that
    * no longer needs attention (a question was answered) sits in the block
    * with `reason: null`.
    */
@@ -185,9 +187,9 @@ export interface ProjectFolder<T extends SidebarThreadInput> {
   rows: FolderRow<T>[];
   /** max(updatedAt) of the folder's threads. */
   lastActivityAt: number;
-  /** Threads of the whole project currently in «Ждут вас». */
+  /** Threads of the whole project currently in "Waiting for you". */
   attentionCount: number;
-  /** Threads of the whole project currently in «В работе». */
+  /** Threads of the whole project currently in "In progress". */
   workingCount: number;
 }
 
@@ -196,21 +198,22 @@ export interface SidebarModel<T extends SidebarThreadInput> {
   working: TopRow<T>[];
   pinned: TopRow<T>[];
   folders: ProjectFolder<T>[];
-  /** Number of visible threads; 0 means "Тредов пока нет". */
+  /** Number of visible threads; 0 means "No threads yet". */
   visibleCount: number;
 }
 
-export const PROJECT_SORT_LABELS = {
-  updated: "По последней активности",
-  opened: "По последнему открытию",
-  created: "По времени создания",
-  title: "По названию",
-} as const;
+/** Sort orders in the order the picker lists them. */
+export const PROJECT_SORTS = ["updated", "opened", "created", "title"] as const;
 
-export type ProjectSort = keyof typeof PROJECT_SORT_LABELS;
+export type ProjectSort = (typeof PROJECT_SORTS)[number];
 
 export function isProjectSort(value: string | null): value is ProjectSort {
-  return value !== null && Object.hasOwn(PROJECT_SORT_LABELS, value);
+  return value !== null && (PROJECT_SORTS as readonly string[]).includes(value);
+}
+
+/** Localized name of a sort order. */
+export function projectSortLabel(sort: ProjectSort): string {
+  return t().sortLabels[sort];
 }
 
 function canNestUnder<T extends SidebarThreadInput>(
@@ -402,7 +405,7 @@ export function buildSidebarModel<T extends SidebarThreadInput>({
     const project = projectById.get(projectId);
     folders.push({
       projectId,
-      name: project?.name ?? "Без проекта",
+      name: project?.name ?? t().noProject,
       isPersonal: project?.isPersonal ?? false,
       rows,
       lastActivityAt:

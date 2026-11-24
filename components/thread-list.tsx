@@ -5,6 +5,7 @@ import {
   type PluginSidebarThread,
   type PluginThreadListProps,
 } from "@get-bb/plugin-sdk/app";
+import { t } from "../lib/i18n";
 import {
   buildSidebarModel,
   collapsedStorageKey,
@@ -12,7 +13,8 @@ import {
   isFolderCollapsed,
   isProjectSort,
   visibleFolderRows,
-  PROJECT_SORT_LABELS,
+  PROJECT_SORTS,
+  projectSortLabel,
   type ProjectFolder,
   type TopRow,
 } from "../lib/model";
@@ -22,12 +24,6 @@ import { useThreadNesting } from "./thread-nesting";
 import { ThreadRow } from "./thread-row";
 
 type BlockId = "attention" | "working" | "pinned";
-
-const BLOCK_TITLES: Record<BlockId, string> = {
-  attention: "Ждут вас",
-  working: "В работе",
-  pinned: "Закреплённые",
-};
 
 type TopRowProject = { id: string; name: string; isPersonal: boolean };
 
@@ -63,7 +59,7 @@ function Block({
 }) {
   const listId = `attention-sidebar-block-${id}`;
   return (
-    <section aria-label={BLOCK_TITLES[id]} data-block={id} className="flex flex-col">
+    <section aria-label={t().blocks[id]} data-block={id} className="flex flex-col">
       <button
         type="button"
         className={headerButtonClass}
@@ -72,7 +68,7 @@ function Block({
         onClick={onToggle}
       >
         <Chevron expanded={!collapsed} />
-        <span className="truncate">{BLOCK_TITLES[id]}</span>
+        <span className="truncate">{t().blocks[id]}</span>
         <span className="ml-auto tabular-nums text-muted-foreground">{count}</span>
       </button>
       {collapsed ? null : (
@@ -85,18 +81,18 @@ function Block({
 }
 
 /**
- * Dot in a collapsed folder's header: the project has threads in «Ждут вас»
- * (accent) or «В работе» (muted) — counted over the whole project, not only the
+ * Dot in a collapsed folder's header: the project has threads in "Waiting for you"
+ * (accent) or "In progress" (muted) — counted over the whole project, not only the
  * threads left in the folder.
  */
 function FolderIndicator({ folder }: { folder: ProjectFolder<PluginSidebarThread> }) {
   const kind =
     folder.attentionCount > 0 ? "attention" : folder.workingCount > 0 ? "working" : null;
   if (kind === null) return null;
-  const label =
-    kind === "attention"
-      ? `Есть треды в «${BLOCK_TITLES.attention}»: ${folder.attentionCount}`
-      : `Есть треды в «${BLOCK_TITLES.working}»: ${folder.workingCount}`;
+  const label = t().folderIndicator(
+    kind,
+    kind === "attention" ? folder.attentionCount : folder.workingCount,
+  );
   return (
     <span
       role="img"
@@ -118,7 +114,7 @@ function FolderIndicator({ folder }: { folder: ProjectFolder<PluginSidebarThread
 
 function Skeleton() {
   return (
-    <div aria-busy="true" aria-label="Загрузка тредов" className="flex flex-col gap-px px-2 pt-1">
+    <div aria-busy="true" aria-label={t().loadingThreads} className="flex flex-col gap-px px-2 pt-1">
       {[72, 55, 64, 48].map((width) => (
         <div key={width} className="flex h-[var(--bb-sidebar-row-height)] items-center gap-2">
           <span className="size-[18px] shrink-0 animate-pulse rounded-full bg-sidebar-accent" />
@@ -194,9 +190,9 @@ export function AttentionThreadList({
 
   if (status === "loading" && threads.length === 0) return <Skeleton />;
   if (status === "error" && threads.length === 0) {
-    return <Message>Не удалось загрузить треды.</Message>;
+    return <Message>{t().loadError}</Message>;
   }
-  if (model.visibleCount === 0) return <Message>Тредов пока нет</Message>;
+  if (model.visibleCount === 0) return <Message>{t().noThreads}</Message>;
 
   const renderTopRows = (rows: TopRow<PluginSidebarThread>[]) =>
     rows.map((row) => {
@@ -224,7 +220,7 @@ export function AttentionThreadList({
   ];
 
   return (
-    <nav aria-label="Треды" data-attention-thread-list="" className="flex flex-col gap-2 px-2 pb-2">
+    <nav aria-label={t().threadsLabel} data-attention-thread-list="" className="flex flex-col gap-2 px-2 pb-2">
       {nesting.error === null ? null : <p role="alert" className="px-2 text-xs text-destructive">{nesting.error}</p>}
       {blocks.map(({ id, rows }) =>
         rows.length === 0 ? null : (
@@ -242,7 +238,7 @@ export function AttentionThreadList({
         ),
       )}
       {model.folders.length > 0 ? (
-        <section aria-label="Проекты" data-block="folders" className="flex flex-col gap-px">
+        <section aria-label={t().projectsLabel} data-block="folders" className="flex flex-col gap-px">
           {model.folders.map((folder) => {
             const key = collapsedStorageKey(folder.projectId);
             const collapsed = isFolderCollapsed(flags.get(key), folder.projectId, activeProjectId);
@@ -276,8 +272,8 @@ export function AttentionThreadList({
                     <label className="relative flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent focus-within:ring-2 focus-within:ring-sidebar-ring">
                       <span aria-hidden className="text-sm">↕</span>
                       <select
-                        aria-label={`Сортировка тредов проекта «${folder.name}»`}
-                        title={PROJECT_SORT_LABELS[sortForProject(folder.projectId)]}
+                        aria-label={t().sortThreadsLabel(folder.name)}
+                        title={projectSortLabel(sortForProject(folder.projectId))}
                         value={sortForProject(folder.projectId)}
                         onChange={(event) => {
                           const sort = event.currentTarget.value;
@@ -285,8 +281,8 @@ export function AttentionThreadList({
                         }}
                         className="absolute inset-0 w-full cursor-pointer opacity-0"
                       >
-                        {Object.entries(PROJECT_SORT_LABELS).map(([sort, label]) => (
-                          <option key={sort} value={sort}>{label}</option>
+                        {PROJECT_SORTS.map((sort) => (
+                          <option key={sort} value={sort}>{projectSortLabel(sort)}</option>
                         ))}
                       </select>
                     </label>

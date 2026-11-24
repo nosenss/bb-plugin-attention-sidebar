@@ -109,7 +109,7 @@ describe("classifyThread", () => {
 });
 
 describe("buildSidebarModel", () => {
-  it("orders «Ждут вас» by reason, then newest attention first, across projects", () => {
+  it("orders “Waiting for you” by reason, then newest attention first, across projects", () => {
     const threads = [
       makeThread({ id: "done-old", projectId: "proj_a", isUnread: true, latestAttentionAt: T0 - 500 }),
       makeThread({ id: "err", projectId: "proj_b", indicator: "unread-error", latestAttentionAt: T0 - 900 }),
@@ -131,7 +131,7 @@ describe("buildSidebarModel", () => {
     expectEachVisibleOnce(model, threads);
   });
 
-  it("orders «В работе» newest first and pinned by pinSortKey", () => {
+  it("orders “In progress” newest first and pinned by pinSortKey", () => {
     const threads = [
       makeThread({ id: "w1", status: "active", updatedAt: T0 - 300 }),
       makeThread({ id: "w2", runtimeStatus: "provisioning", updatedAt: T0 - 100 }),
@@ -270,7 +270,7 @@ describe("buildSidebarModel", () => {
 
   it("names folders of unknown projects", () => {
     const model = build([makeThread({ projectId: "proj_unknown" })]);
-    expect(model.folders[0]!.name).toBe("Без проекта");
+    expect(model.folders[0]!.name).toBe("No project");
   });
 
   it("lists every visible thread exactly once in a mixed list", () => {
@@ -332,7 +332,7 @@ describe("frozen active thread", () => {
     expect(model.working).toEqual([]);
   });
 
-  it("follows a live change of reason while frozen in «Ждут вас»", () => {
+  it("follows a live change of reason while frozen in “Waiting for you”", () => {
     const unread = makeThread({ id: "t", isUnread: true });
     const frozen = freezeThread(unread);
     const failed = { ...unread, isUnread: false, indicator: "unread-error" as const };
